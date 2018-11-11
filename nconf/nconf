@@ -1,0 +1,127 @@
+#!/bin/bash
+
+#
+# NODE-CONFIG
+# 
+# BY K.Y.KOO (k.y.koo@exeter.ac.uk)
+# 25 Nov 2017
+
+ASK_TO_REBOOT=0
+
+calc_wt_size() {
+  # NOTE: it's tempting to redirect stderr to /dev/null, so supress error       
+  # output from tput. However in this case, tput detects neither stdout or      
+  # stderr is a tty and so only gives default 80, 24 values                     
+    WT_HEIGHT=17
+    WT_WIDTH=$(tput cols)
+
+    if [ -z "$WT_WIDTH" ] || [ "$WT_WIDTH" -lt 60 ]; then
+	WT_WIDTH=50
+    fi
+    if [ "$WT_WIDTH" -gt 178 ]; then
+	WT_WIDTH=120
+    fi
+    WT_MENU_HEIGHT=$(($WT_HEIGHT-7))
+}
+
+do_finish() {
+  if [ $ASK_TO_REBOOT -eq 1 ]; then
+    whiptail --yesno "Would you like to reboot now?" $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT
+    if [ $? -eq 0 ]; then # yes                                                               
+      sync
+      reboot
+    fi
+  fi
+  exit 0
+}
+
+choose_AP() {
+    #echo "Running choose_AP ..."
+
+	# IDENTIFY CURRENT SELECTION OF AP
+    AP_wings=$(sudo grep 'ssid="wings"' /etc/wpa_supplicant/wpa_supplicant.conf -c)
+	AP_ap2=$(sudo grep 'ssid="AP2"'   /etc/wpa_supplicant/wpa_supplicant.conf -c)
+	AP_ap3=$(sudo grep 'ssid="AP3"'   /etc/wpa_supplicant/wpa_supplicant.conf -c)
+
+	if [ $AP_wings == '1' ]; then
+		WINGS_CHECK="ON"
+	else
+		WINGS_CHECK="OFF"
+	fi
+	if [ $AP_ap2 == '1' ]; then
+		AP2_CHECK="ON"
+	else
+		AP2_CHECK="OFF"
+	fi
+	if [ $AP_ap3 == '1' ]; then
+		AP3_CHECK="ON"
+	else
+		AP3_CHECK="OFF"
+	fi
+
+	# CHANGE AP AS REQUESTED
+    FUN=$(whiptail --title "VESHM-NODE-CONFIG" --radiolist "Choose a WiFi"  $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT \
+	"WINGS" "" $WINGS_CHECK \
+	"AP2" "" $AP2_CHECK \
+	"AP3" "" $AP3_CHECK \
+	3>&1 1>&2 2>&3)
+
+	if [ ! -z $FUN ]; then 	# SKIP IF CANCEL PRESSED
+		if [ $FUN == "WINGS" ] && [ $WINGS_CHECK == "OFF" ]; then
+			echo $WINGS_CHECK
+			echo [ $WINGS_CHECK == "OFF" ]
+			echo [ $FUN == "WINGS" ] && [ $WINGS_CHECK == "OFF" ]
+			sudo sed 's/ssid="\w*"/ssid="wings"/g' /etc/wpa_supplicant/wpa_supplicant.conf  -i
+			ASK_TO_REBOOT=1
+		fi
+		if [ $FUN == "AP2" ] && [ $AP2_CHECK == "OFF" ]; then
+			sudo sed 's/ssid="\w*"/ssid="AP2"/g' /etc/wpa_supplicant/wpa_supplicant.conf  -i
+			ASK_TO_REBOOT=1
+		fi
+		if [ $FUN == "AP3" ] && [ $AP3_CHECK == "OFF" ]; then
+			sudo sed 's/ssid="\w*"/ssid="AP3"/g' /etc/wpa_supplicant/wpa_supplicant.conf  -i
+			ASK_TO_REBOOT=1
+		fi
+	fi
+}
+
+echo "------------------------"
+echo " NODE-CONFIG v0.1"
+echo "------------------------"
+echo " Press RETRUN key to configure ..."
+
+# WAIT FOR USER INPUT TO START 
+for ((i = 10 ; i > 0 ; i--)); 
+do
+	echo -n $i ". "
+	read -t 1 -a input || continue
+	# echo "break"
+	break
+done
+
+if [ $i == 0 ]; then
+	#echo
+	exit 0
+fi
+
+calc_wt_size
+
+# MAIN MENU
+while true; do
+    FUN=$(whiptail --title "NODE-CONFIG" --menu "Setup Options" $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT \
+				   --cancel-button Finish --ok-button Select \
+				   "1 WiFi-AP" "Choose a WiFi Access Point." \
+				   3>&1 1>&2 2>&3)
+
+    RET=$?
+    if [ $RET -eq 1 ]; then   # WHEN FINISHED PRESSED
+		do_finish
+    elif [ $RET -eq 0 ]; then # WHEN A MENU SELECTED
+		case "$FUN" in
+			1\ *) choose_AP ;;
+			*) whiptail --msgbox "Programmer error: unrecognized option" 20 60 1 ;;
+		esac || whiptail --msgbox "There was an error running option $FUN" 20 60 1
+    else
+		exit 1
+    fi
+done
