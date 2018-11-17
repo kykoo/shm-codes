@@ -1,0 +1,444 @@
+#+OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline
+#+OPTIONS: author:t broken-links:nil c:nil creator:nil
+#+OPTIONS: d:(not "LOGBOOK") date:t e:t email:nil f:t inline:t num:t
+#+OPTIONS: p:nil pri:nil prop:nil stat:t tags:t tasks:t tex:t
+#+OPTIONS: timestamp:t title:t toc:t todo:t |:t
+#+TITLE: ds18b20
+#+DATE: <2016-12-20 Tue>
+#+AUTHOR: Ki Young Koo
+#+EMAIL: k.y.koo@exeter.ac.uk
+#+LANGUAGE: en
+#+SELECT_TAGS: export
+#+EXCLUDE_TAGS: noexport
+#+CREATOR: Emacs 25.1.1 (Org mode 9.0)
+
+* Header
+#+BEGIN_SRC c :tangle ds18b20.c
+  /*
+   ,* DS18B20 TEMPERATURE SENSOR SOFTWARE 
+   ,*
+   ,* USE THE 1-WIRE SENSORS TO ACQUIRE TEMPERATURE DATA 
+   ,*
+   ,* OUTPUT: 
+   ,* 	Measurement files at ~/data/ 
+   ,*
+   ,* BY Ki Young Koo
+   ,*
+   ,* Revision:
+   ,*    3rd Jan 2017: option for SAMPLING_PERIOD added
+   ,* 
+   ,*/
+
+  #include <stdio.h>
+  #include <dirent.h>
+  #include <string.h>
+  #include <stdbool.h>
+  #include <fcntl.h>
+  #include <stdlib.h>
+  #include <unistd.h>
+  #include <wiringPi.h>
+  #include <time.h>
+  #include <errno.h>
+  #include <sys/stat.h>
+
+  #define DEBUG false
+  #define SAMPLING_PERIOD 60 // in seconds
+#+END_SRC
+* Variables
+** general
+#+BEGIN_SRC c :tangle ds18b20.c
+  char timestring[50];
+  int state = 1;
+  DIR *dir;
+  struct dirent *dirent;
+  char buf[256];     // Data from device
+  char tmpData[6];   // Temp C * 1000 reported by device 
+  const char path[] = "/sys/bus/w1/devices"; 
+  ssize_t numRead;
+  int i = 0;
+  int devCnt = 0;
+    char dev[10][16];
+    char devPath[10][128];
+
+#+END_SRC
+** buttons
+#+BEGIN_SRC c :tangle ds18b20.c
+  typedef struct
+  {
+    int ButtonNumber;
+    int ReadingNow;
+    int ReadingPrev;
+    unsigned int timeDetected;
+    bool isPressed;
+  } button;
+
+  button buttons[3];
+
+  unsigned int time_last = 0;         // the last time the output pin was toggled
+  unsigned int debounce = 200;   // the debounce time, increase if the output flickers
+#+END_SRC
+** sampling
+#+BEGIN_SRC c :tangle ds18b20.c
+  time_t currentTime = 0;
+  time_t samplingTime = 0;
+#+END_SRC
+* Utility functions
+** readSystemTime
+#+BEGIN_SRC c :tangle ds18b20.c
+  void readSystemTime(){
+    time_t t = time(NULL);
+    struct timespec gettime_now;
+    clock_gettime(CLOCK_REALTIME, &gettime_now);
+    t = gettime_now.tv_sec;
+    struct tm tm = *localtime(&t);
+
+    sprintf(timestring,"%d-%.2d-%.2d %.2d:%.2d:%.2d.%.9ld", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, gettime_now.tv_nsec);
+    return;
+  }
+#+END_SRC
+** logMeasurement
+#+BEGIN_SRC c :tangle ds18b20.c
+  void logMeasurement(char* devName, float temperature){
+
+    FILE* fd;
+    char path2Logfile[50];
+
+
+    /* CHECK IF DATA FOLDER EXISTS */
+
+    DIR* dir = opendir("/home/pi/data");
+    if(dir){
+      closedir(dir);
+    }else if(ENOENT == errno){
+      mkdir("/home/pi/data",0700);
+    }
+
+    strcpy(path2Logfile,"/home/pi/data/");
+    strcat(path2Logfile,devName);
+    strcat(path2Logfile,".txt");
+    //printf("%s\n",path2Logfile);
+
+    fd = fopen(path2Logfile,"a");
+    fprintf(fd,"%s, %f\n",timestring,temperature/1000);
+    fclose(fd);
+  }
+#+END_SRC
+** single_measure
+#+BEGIN_SRC c :tangle ds18b20.c
+  void single_measure(){
+    int i;
+    char timestring_s[10];
+
+    readSystemTime();
+    memcpy(timestring_s,&timestring[11],8);
+    timestring_s[8]='\0';
+    printf(" %s",timestring_s);
+
+    if(DEBUG)
+      printf("Before the for-loop\n");
+
+    for(i=0; i<devCnt; i++){
+      int fd = open(devPath[i], O_RDONLY);
+      if(fd == -1){
+	perror ("Couldn't open the w1 device.");
+	return;
+      }
+      if(DEBUG)
+	printf("After open\n");
+
+      while((numRead = read(fd, buf, 256)) > 0){
+	strncpy(tmpData, strstr(buf, "t=") + 2, 6);
+	if(DEBUG)
+	  printf("After strncpy\n");
+	float tempC = strtof(tmpData, NULL);
+	if( i<devCnt-1){
+	  printf(" %.3f",tempC/1000);
+	}else{
+	  printf(" %.3f\n",tempC/1000);
+	}
+	if(DEBUG)
+	  printf("Before logMeasurement\n");
+	logMeasurement(dev[i],tempC);
+      }
+      close(fd);
+    }
+    return;
+  }
+#+END_SRC
+** time2Measure
+#+BEGIN_SRC c :tangle ds18b20.c
+  bool time2Measure(){
+      struct timespec gettime_now;
+      clock_gettime(CLOCK_REALTIME, &gettime_now);
+      currentTime = gettime_now.tv_sec;
+
+      if(samplingTime == 0){
+	// SET SAMPLINGTIME IF NOT SET
+	samplingTime = (currentTime/SAMPLING_PERIOD+1)*SAMPLING_PERIOD;
+	return false;
+      }else if(currentTime < samplingTime){
+	// NOT THE SAMPLINGTIME YET
+	return false;
+      }else{
+	// NOW IS THE TIME
+	samplingTime += SAMPLING_PERIOD;
+	return true;
+      }
+  }
+#+END_SRC
+* Main function
+** Start
+#+BEGIN_SRC c :tangle ds18b20.c
+  int main (void) {
+#+END_SRC
+** Setup
+*** general
+#+BEGIN_SRC c :tangle ds18b20.c
+  // 1ST PASS COUNTS DEVICES
+  dir = opendir (path);
+  if (dir != NULL)
+    {
+      while ((dirent = readdir (dir))) {
+	// 1-wire devices are links beginning with 28-
+	if (dirent->d_type == DT_LNK &&
+	    strstr(dirent->d_name, "28-") != NULL) {
+	  i++;
+	}
+      }
+      (void) closedir (dir);
+    }
+   else
+     {
+       perror ("Couldn't open the w1 devices directory");
+       return 1;
+     }
+  devCnt = i;
+  i = 0;
+
+  // 2ND PASS ALLOCATES SPACE FOR DATA BASED ON DEVICE COUNT
+  dir = opendir (path);
+  if (dir != NULL)
+    {
+      while ((dirent = readdir (dir))) {
+	// 1-wire devices are links beginning with 28-
+	if (dirent->d_type == DT_LNK && 
+	    strstr(dirent->d_name, "28-") != NULL) { 
+	  strcpy(dev[i], dirent->d_name);
+	  // Assemble path to OneWire device
+	  sprintf(devPath[i], "%s/%s/w1_slave", path, dev[i]);
+	  i++;
+	}
+      }
+      (void) closedir (dir);
+    }
+   else
+     {
+       perror ("Couldn't open the w1 devices directory");
+       return 1;
+     }
+  i = 0;
+
+  printf("-----------------------------\n");
+  printf(" Welcome to Temperature Node \n");
+  printf("-----------------------------\n");
+  printf("State=1: ready to measure...\n");
+#+END_SRC
+*** wiringPi
+#+BEGIN_SRC c :tangle ds18b20.c
+  // WiringPi
+  wiringPiSetupGpio();
+#+END_SRC
+*** Buttons
+#+BEGIN_SRC c :tangle ds18b20.c
+  // Button setup
+  buttons[0].ButtonNumber = 27;
+  buttons[1].ButtonNumber = 22;
+  buttons[2].ButtonNumber = 17;
+  for(i=0; i<3; i++){
+    pinMode(buttons[i].ButtonNumber,INPUT);
+    pullUpDnControl(buttons[i].ButtonNumber,PUD_UP);
+   }
+  for(i=0; i<3; i++){
+    buttons[i].ReadingNow = HIGH;
+    buttons[i].ReadingPrev = HIGH;
+    buttons[i].timeDetected = 0L;
+    buttons[i].isPressed = false;
+   }
+#+END_SRC
+** Loop
+#+BEGIN_SRC c :tangle ds18b20.c
+  // Read temp continuously
+  // Opening the device's file triggers new reading
+  while(1) {
+
+    if(DEBUG) printf("in the loop\n");
+
+    /* DETECTING BUTTON PRESSINGS */
+
+    int ibutton, Reading, ReadingPrev;
+    for(ibutton = 0; ibutton < 3; ibutton++){
+      Reading     = digitalRead(buttons[ibutton].ButtonNumber);
+      ReadingPrev = buttons[ibutton].ReadingPrev;
+      time_last        = buttons[ibutton].timeDetected;
+      if(Reading == LOW && ReadingPrev == HIGH && millis() - time_last > debounce){
+		  buttons[ibutton].isPressed = true;
+		  buttons[ibutton].timeDetected = millis();	
+      }
+      buttons[ibutton].ReadingPrev = Reading;
+    }
+
+    /* CALLBACK FUNCTIONS FOR A SWITCH PRESSING */
+    /* state 1: Ready   */
+    /* state 2: DAQ	state  */
+
+
+    /* UP button */
+    if(buttons[1].isPressed == true){
+      buttons[1].isPressed = false;
+      if(state == 1){
+		  state = 2;
+		  printf("State=2: measuring... \n");
+		  printf(" TIME    ");
+		  for(i=0;i<devCnt;i++){
+		    printf(" %s  ",(dev[i]+11));
+		  }
+		  printf("\n");
+
+      }
+    }
+
+    /* DOWN button */
+    if(buttons[2].isPressed == true){
+      buttons[2].isPressed = false;
+      if(state==2){
+		  state = 1;
+		  printf("State=1: ready to measure...\n");
+      }
+    }
+
+    /* STATE DEPENDENT ROUTINES */
+
+      if(DEBUG) printf("State=%d\n",state);
+
+      if(state==1)
+		  delay(100);
+                  
+      if(state==2){
+		  // Measure!
+		  if(time2Measure()==false){
+			  continue;
+		  }else{
+			  single_measure();
+		  }
+
+      }
+  }
+#+END_SRC
+** End
+#+BEGIN_SRC c :tangle ds18b20.c
+    return 0;
+  }
+#+END_SRC
+* Backup
+** Bash script
+#+BEGIN_SRC shell :results output
+
+  W1DIR="/sys/bus/w1/devices"
+
+  # Exit if 1-wire directory does not exist
+  if [ ! -d $W1DIR ]
+  then
+      echo "Can't find 1-wire device directory"
+      exit 1
+  fi
+
+  # Get a list of all devices
+  DEVICES=$(ls $W1DIR)
+  echo $DEVICES
+
+  # Loop through all devices
+  for DEVICE in $DEVICES
+  do
+      # Ignore the bus master device
+      if [ $DEVICE != "w1_bus_master1" ]
+      then
+          # Get an answer from this device
+          ANSWER=$(cat $W1DIR/$DEVICE/w1_slave)
+
+          # See if device really answered
+          # When a previously existing device is removed it will
+          # read 00 00 00 00 00 00 00 00 00, which results in a
+          # valid CRC. That's why we need this extra test.
+          echo -e "$ANSWER" | grep -q "00 00 00 00 00 00 00 00 00"
+
+          if [ $? -ne 0 ]
+          then
+              # The temperature is only valid if the CRC matches
+              echo -e "$ANSWER" | grep -q "YES"
+              if [ $? -eq 0 ]
+              then
+                  # Isolate the temperature from the second line
+                  TEMPERATURE=$(echo -e "$ANSWER" | grep "t=" | cut -f 2 -d "=")
+		  echo $TEMPERATURE
+
+                  # Isolate sign, integer and fraction parts so we know where
+                  # the decimal point should go
+
+                  SIGN=${TEMPERATURE:0:1}
+		  echo $SIGN
+
+                  if [ $SIGN != "-" ]
+                  then
+                      SIGN=""
+                  else
+                      TEMPERATURE=${TEMPERATURE:1:6}
+                  fi
+
+                  TEMPERATURE="000000$TEMPERATURE"
+		  echo $TEMPERATURE
+                  TEMPERATURE=${TEMPERATURE:(-6)}
+		  echo $TEMPERATURE
+
+		  echo '---INTEGER---'
+                  INTEGER=${TEMPERATURE:0:(-3)}
+		  echo $INTEGER
+                  INTEGER=$((10#$INTEGER))
+		  echo $INTEGER
+                  FRACTION=${TEMPERATURE:(-3)}
+		  echo $FRACTION
+
+                  # Get Timestamp
+                  TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+		  echo $TIMESTAMP
+
+                  # Write result of this sensor
+
+                  echo "$DEVICE=$TIMESTAMP,$SIGN$INTEGER.$FRACTION"
+                  echo "$TIMESTAMP,$SIGN$INTEGER.$FRACTION" >> "/home/pi/"$DEVICE".txt"
+              else
+                  # A CRC was found, show error message instead
+                  echo "$DEVICE=CRC error"
+                  echo "$DEVICE=CRC error" >> "/home/pi/"$DEVICE".txt"
+              fi
+          fi
+
+	  break
+      fi
+  done
+
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+28-00000371f8da 28-000004379bd1 28-000004f65f2d 28-000004f6e9d1 w1_bus_master1
+4062
+4
+0000004062
+004062
+---INTEGER---
+004
+4
+062
+2016-12-20 16:44:07
+28-00000371f8da=2016-12-20 16:44:07,4.062
+#+end_example
