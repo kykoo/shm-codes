@@ -61,6 +61,7 @@ Fs = 100.0
 state = 0
 bootSequence = True
 iPPS = 0
+logging = False
 
 # TABLES FOR CC-Time for PPS, CC-XYZ for DAQ Point
 ppsCC_Time = {'t1': [], 'CC1': [], 'Fclk': []}
@@ -208,7 +209,8 @@ def parse(rx_buff):
         # PRINT OUT MESSAGE
         if rx_buff[0] == '0':
             sys.stdout.write(rx_buff[:idx] + '\n')
-            log(rx_buff[:idx])
+            if logging:
+                log(rx_buff[:idx])
             # AUTO-STARTUP
             if bootSequence is True and rx_buff[0:8] == '0,state=':
                 state = int(rx_buff[8])
@@ -224,7 +226,8 @@ def parse(rx_buff):
         elif rx_buff[0] == '1':
             rx_buff_split = rx_buff[:idx].split(',')
             sys.stdout.write(rx_buff[:idx] + '\n')
-            log(rx_buff[:idx])
+            if logging:
+                log(rx_buff[:idx])
             t1_ = float(rx_buff_split[3])
             CC1_ = float(rx_buff_split[1])*2**16 + float(rx_buff_split[2])
             # print(t1_)
@@ -245,7 +248,8 @@ def parse(rx_buff):
         elif rx_buff[0] == '2':
             rx_buff_split = rx_buff[:idx].split(',')
             # sys.stdout.write(rx_buff[:idx] + '\n')
-            log(rx_buff[:idx])
+            if logging:
+                log(rx_buff[:idx])
             try:
                 CCi_ = float(rx_buff_split[1])*2**16 + float(rx_buff_split[2])
                 valXYZ_ = [float(rx_buff_split[3]), float(rx_buff_split[4]), float(rx_buff_split[5])]
@@ -317,7 +321,8 @@ def parse(rx_buff):
         elif rx_buff[0] == '3': # CC without PPS-time
             rx_buff_split = rx_buff[:idx].split(',')
             # sys.stdout.write(rx_buff[:idx] + '\n')
-            log(rx_buff[:idx])
+            if logging:
+                log(rx_buff[:idx])
             CC1_ = float(rx_buff_split[1])*2**16 + float(rx_buff_split[2])
             dT = float(round((CC1_ - ppsCC_Time['CC1']) / ppsCC_Time['Fclk']))
             ppsCC_Time['CC1'] = CC1_
@@ -329,7 +334,8 @@ def parse(rx_buff):
         else:
             print('unrecognised data')
             sys.stdout.write(rx_buff)
-            log(rx_buff[:idx])
+            if logging:
+                log(rx_buff[:idx])
             rx_buff = rx_buff[(idx+2):]
     return rx_buff    
 
