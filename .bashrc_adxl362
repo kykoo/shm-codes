@@ -1,29 +1,31 @@
 
 
 # Add Following to .bashrc
-
+#--------------------------------------------------------------------
 # Settings for ADXL362 Nodes
 if [ -f ~/codes/shm-codes/.bashrc_adxl362 ]; then
    . ~/codes/shm-codes/.bashrc_adxl362
 fi
-    
+#--------------------------------------------------------------------    
+
 
 #====================================================================
 # SETTINGS FOR SHM-CODES
-#
+#====================================================================
+
+# PATH
 export PATH=$PATH:/home/pi/codes/shm-codes/nconf
 #export PYTHONPATH=$PYTHONPATH:/home/pi/codes/ds18b20
+
+# NCONF
 nconf
 
 
-
-#
 # EXECUTE adxl362_tsrs.py ONLY IF IT IS NOT RUNNING SOMEWHERE ELSE
-#
+
 output=$(/bin/pidof -x adxl362_tsrs.py)
 if [ -z "$output" ]; then
     /usr/bin/sudo /home/pi/codes/shm-codes/_06_GO_HAT_ADXL362_tsrs/adxl362_tsrs.py
-
 fi
 
 #
