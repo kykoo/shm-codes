@@ -1,0 +1,44 @@
+
+
+# Add Following to .bashrc
+
+# Settings for ADXL362 Nodes
+if [ -f ~/codes/shm-codes/.bashrc_adxl362 ]; then
+   . ~/codes/shm-codes/.bashrc_adxl362
+fi
+    
+
+#====================================================================
+# SETTINGS FOR SHM-CODES
+#
+export PATH=$PATH:/home/pi/codes/shm-codes/nconf
+#export PYTHONPATH=$PYTHONPATH:/home/pi/codes/ds18b20
+nconf
+
+
+
+#
+# EXECUTE adxl362_tsrs.py ONLY IF IT IS NOT RUNNING SOMEWHERE ELSE
+#
+output=$(/bin/pidof -x adxl362_tsrs.py)
+if [ -z "$output" ]; then
+    /usr/bin/sudo /home/pi/codes/shm-codes/_06_GO_HAT_ADXL362_tsrs/adxl362_tsrs.py
+
+fi
+
+#
+# Attach to the TMUX session "console", Create it if not exist
+#
+
+#output=$(/usr/bin/tmux list-session 2>&1 | /bin/grep "MC")
+#if [ -z "$output" ]; then
+    # Create if not exists
+        #/usr/bin/tmux new-session -s MC "/usr/bin/sudo /home/pi/codes/adxl365/adxl365_tsrs.py"
+	    #/usr/bin/tmux new-session -s MC
+	        #/usr/bin/tmux a -t MC
+		#fi
+		#/usr/bin/sudo /home/pi/codes/adxl362/adxl362_tsrs.py
+		#
+		#
+
+    
