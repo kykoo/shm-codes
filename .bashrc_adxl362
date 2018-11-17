@@ -2,10 +2,10 @@
 
 # Add Following to .bashrc
 #--------------------------------------------------------------------
-# Settings for ADXL362 Nodes
-if [ -f ~/codes/shm-codes/.bashrc_adxl362 ]; then
-   . ~/codes/shm-codes/.bashrc_adxl362
-fi
+# # Settings for ADXL362 Nodes
+# if [ -f ~/codes/shm-codes/.bashrc_adxl362 ]; then
+#    . ~/codes/shm-codes/.bashrc_adxl362
+# fi
 #--------------------------------------------------------------------    
 
 
