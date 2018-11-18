@@ -25,19 +25,20 @@ if [ -z "$output" ]; then
     /usr/bin/sudo /home/pi/codes/shm-codes/_06_GO_HAT_ADXL362_tsrs/adxl362_tsrs.py
 fi
 
+
+#======================================================================
+# OLD CODES
+#======================================================================
 #
 # Attach to the TMUX session "console", Create it if not exist
 #
-
 #output=$(/usr/bin/tmux list-session 2>&1 | /bin/grep "MC")
 #if [ -z "$output" ]; then
-    # Create if not exists
-        #/usr/bin/tmux new-session -s MC "/usr/bin/sudo /home/pi/codes/adxl365/adxl365_tsrs.py"
-	    #/usr/bin/tmux new-session -s MC
-	        #/usr/bin/tmux a -t MC
-		#fi
-		#/usr/bin/sudo /home/pi/codes/adxl362/adxl362_tsrs.py
-		#
-		#
+## Create if not exists
+#  /usr/bin/tmux new-session -s MC "/usr/bin/sudo /home/pi/codes/adxl365/adxl365_tsrs.py"
+#  /usr/bin/tmux new-session -s MC
+#  /usr/bin/tmux a -t MC
+#fi
+#
 
     
