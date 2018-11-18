@@ -17,9 +17,6 @@
 export PATH=$PATH:/home/pi/codes/shm-codes/nconf
 #export PYTHONPATH=$PYTHONPATH:/home/pi/codes/ds18b20
 
-# NCONF
-nconf
-
 
 # EXECUTE adxl362_tsrs.py ONLY IF IT IS NOT RUNNING SOMEWHERE ELSE
 
