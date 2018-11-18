@@ -85,24 +85,24 @@ choose_AP() {
 	fi
 }
 
-echo "------------------------"
-echo " NODE-CONFIG v0.1"
-echo "------------------------"
-echo " Press RETRUN key to configure ..."
-
-# WAIT FOR USER INPUT TO START 
-for ((i = 10 ; i > 0 ; i--)); 
-do
-	echo -n $i ". "
-	read -t 1 -a input || continue
-	# echo "break"
-	break
-done
-
-if [ $i == 0 ]; then
-	#echo
-	exit 0
-fi
+# echo "------------------------"
+# echo " NODE-CONFIG v0.1"
+# echo "------------------------"
+# echo " Press RETRUN key to configure ..."
+# 
+# # WAIT FOR USER INPUT TO START 
+# for ((i = 5 ; i > 0 ; i--)); 
+# do
+# 	echo -n $i ". "
+# 	read -t 1 -a input || continue
+# 	# echo "break"
+# 	break
+# done
+# 
+# if [ $i == 0 ]; then
+# 	#echo
+# 	exit 0
+# fi
 
 calc_wt_size
 
