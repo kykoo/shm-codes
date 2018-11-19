@@ -1,5 +1,16 @@
 #!/usr/bin/python3
 
+#
+# PITFT
+#
+# 1. Detect pushbutton pushes
+#    - change state as required
+#    - turn on/off gui mode as required
+# 2. Time history plot
+#
+# 3. PSD plot
+#
+
 
 import time
 from time import sleep
@@ -39,10 +50,32 @@ pinDownButton = 17
 Buttons = ''
 debounce = datetime.timedelta(0, 0, 0, 200)
 now = datetime.datetime.now()
+state_guiOnOff = [0, 1]
+state = [0, 0]
+state_max = len(state_guiOnOff)-1
 
+def pushbutton_callback():
+    global  state, state_max
+
+    # print('pushbutton_callback')
+    n = getButtonStroke()
+    # print(n, state)
+    if n:
+        if n == pinUpButton and state[1] < state_max:
+            state[0] = state[1]
+            state[1] = state[1] + 1
+        elif n == pinDownButton and state[1] > 0:
+            state[0] = state[1]
+            state[1] = state[1] - 1 
+        print('state = {}'.format(state))
+        # ON/OFF GUI
+        guiOnOff(state_guiOnOff[state[1]])
+        
+    return
 
 def begin():
-    global Buttons
+    global Buttons, state_max
+    
     Buttons = [{'Number': pinDownButton,
                 'readingPrev': 1,
                 'timeDetected': now,
@@ -55,6 +88,8 @@ def begin():
                 'isPressed': False,
                 'cmd': 'u',
                 'dstate': 1}]
+    state_max = len(state_guiOnOff) - 1
+    # print("pitft.begin() done.")
 
 def getButtonStroke():
     global Buttons
@@ -158,14 +193,33 @@ def storeData(t_ks, data_ks):
 def end():
     GPIO.cleanup()
 
-def guiOn():
-    pygame.init()
+def guiOnOff(x):
+    if x == 1:
+        pygame.display.init()
+        lcd = pygame.display.set_mode((320,240))
+        pygame.mouse.set_visible(False)
+    elif x == 0:
+        pygame.display.quit()
     return
 
-def guiOff():
-    pygame.display.quit()
-    return
+def display_time():
+    if state_guiOnOff[state[1]] == 1:
+        lcd = pygame.display.set_mode((320, 240))
+        pygame.mouse.set_visible(False)
 
+        feed_surface = pygame.image.load("sin-curve.png").convert()
+        #lcd.blit(feed_surface, (0,0))
+        
+        nowStr = datetime.datetime.now().strftime('%Y %m-%d %H:%M:%S')
+        color = (0,0,0)
+        font_big = pygame.font.SysFont(None, 18)
+        text_surface = font_big.render(nowStr, True, color)
+        rect = text_surface.get_rect(topleft=(3,3))
+        rect2 = text_surface.get_rect(topleft=(160,120))
+        lcd.blit(feed_surface,(0,0))
+        lcd.blit(text_surface, rect)
+
+        pygame.display.update()
 
 # PYGAME
 os.putenv('SDL_FBDEV', '/dev/fb1')
@@ -175,10 +229,60 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setup(pinDownButton, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(pinUpButton, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
+
+
 if __name__ == '__main__':
-    begin()
-    while True:
-        # PROCESS COMMANDS FROM PUSH BUTTONS
-        n = getButtonStroke()
-        if n:
-            print(n, ' Pressed')
+
+    # TEST FOR ButtonStroke Detection
+    if False:
+        begin()
+        while True:
+            # PROCESS COMMANDS FROM PUSH BUTTONS
+            n = getButtonStroke()
+            if n:
+                print(n, ' Pressed')
+
+    # TEST FOR Graphics mode
+    if False:
+        begin()
+        lcd = pygame.display.set_mode((320, 240))
+        lcd.fill((255,0,0))
+        pygame.display.update()
+        pygame.mouse.set_visible(False)
+        lcd.fill((0,0,0))
+        pygame.display.update()
+
+        while True:
+            print('')
+
+    # Test for graphs
+    if True:
+    
+        from numpy import *
+        from matplotlib.pyplot import *
+
+        Tend = 1
+        Fs = 100.0
+        dt = 1/Fs
+        F = 1
+        t = array([i*dt for i in range(int(round(Tend/dt)))])
+        y = sin(2*pi*F*t)
+
+        figure(1, figsize=(4,3))
+        clf()
+        plot(t,y)
+
+        #set_size_inches(4, 3)
+        gca().axes.get_xaxis().set_visible(False)
+        savefig('sin-curve.png', dpi = 80)
+        close(1)
+
+        pygame.init()
+        lcd = pygame.display.set_mode((320, 240))
+
+        feed_surface = pygame.image.load("sin-curve.png")
+        lcd.blit(feed_surface, (0,0))
+        pygame.display.update()
+
+        sleep(3)
+        pygame.
