@@ -1,5 +1,10 @@
 #!/usr/bin/python3
 
+#
+# Module for saving data and logging messages
+#
+#
+
 import array as array_
 import datetime
 import socket
@@ -8,7 +13,7 @@ from numpy import *
 import time
 
 class shm_daq_files:
-    'Class for handling data files from SHM systems'
+    'Class for handling data files from a SHM system'
     dataType = 0
     timeLength = 0
     hostName = ''
