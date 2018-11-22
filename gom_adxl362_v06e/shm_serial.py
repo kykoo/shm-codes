@@ -11,10 +11,11 @@ import socket
 import os
 from numpy import *
 import time
+import serial
 
 ser = ''
-port = '/dev/ttyUSB0'
-baudrate = 9600 
+port = '/dev/serial0'
+baudrate = 115200 
 parity = serial.PARITY_NONE
 stopbits = serial.STOPBITS_ONE
 bytesize = serial.EIGHTBITS
@@ -29,10 +30,9 @@ def begin():
     ser = serial.Serial(
         port = port,
         baudrate = baudrate,
-        parity = parity
-        stopbits = stopbits
-        bytesize = bytesize
-    )
+        parity = parity,
+        stopbits = stopbits,
+        bytesize = bytesize)
     # ERROR CHECKING
     if(ser.isOpen() is False):
         sys.exit('Serial is not open!')
@@ -43,16 +43,15 @@ def begin():
         ser.read(1)
 
 
-def rx_callback():
-    global rx_buff
+def rx_polling():
+    global ser, rx_buff
     # PROCESS OUTPUTS FROM GOM 
     while ser.inWaiting() > 0:
         try:
             rx_buff += ser.read(1).decode('UTF-8')
         except:
             pass
-    if(len(rx_buff) > 0):
-        parse_rx_buff()
+    return
 
 
 if __name__ == '__main__':

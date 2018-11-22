@@ -30,109 +30,141 @@ from scipy import signal
 import array as array_
 
 
-# CONFIGURATION
-timeLengthPlot = 4  # of sec for time history plot
-Fs = 4.0
-Time = []
-Data = []
-time0 = 0
-time1 = 0
-Time_plot = []
-Data_plot = []
-dt = 1/Fs
-
-npoints_PSD = 2**10  # of data points in PSD calculation
-NFFT = 2**9
-
 # BUTTON SETTING
 pinUpButton = 22
 pinDownButton = 17
-Buttons = ''
+pinResetButton = 27
+
 debounce = datetime.timedelta(0, 0, 0, 200)
 now = datetime.datetime.now()
-state_guiOnOff = [0, 1]
-state = [0, 0]
-state_max = len(state_guiOnOff)-1
 
-def pushbutton_callback():
-    global  state, state_max
+Buttons = [{'Number': pinDownButton,
+            'prevReading': 1,
+            'detectedTime': now,
+            'isPressed': False,
+            'dstate': -1},
+           {'Number': pinUpButton,
+            'prevReading': 1,
+            'detectedTime': now,
+            'isPressed': False,
+            'dstate': 1},
+           {'Number': pinResetButton,
+            'prevReading': 1,
+            'detectedTime': now,
+            'isPressed': False,
+            'dstate': 1}]
 
-    # print('pushbutton_callback')
-    n = getButtonStroke()
-    # print(n, state)
-    if n:
-        if n == pinUpButton and state[1] < state_max:
-            state[0] = state[1]
-            state[1] = state[1] + 1
-        elif n == pinDownButton and state[1] > 0:
-            state[0] = state[1]
-            state[1] = state[1] - 1 
-        print('state = {}'.format(state))
-        # ON/OFF GUI
-        guiOnOff(state_guiOnOff[state[1]])
-        
-    return
+lcd = ''
 
-def begin():
-    global Buttons, state_max
+# PLOT CONFIGURATION
+timeLengthPlot = 5  # of sec for time history plot
+Fs = 100.0
+dt = 1/Fs
+npoints_PSD = 2**10  # of data points in PSD calculation
+NFFT = 2**9
+
+dataBuff = []       # data buffer 
+xaxislimit = [0, 0] # of the next time history plot 
+data4plot = []      # data corresponding to xaxislimit
+
+
+
+
+
+
+def pushButton_Polling():
     
-    Buttons = [{'Number': pinDownButton,
-                'readingPrev': 1,
-                'timeDetected': now,
-                'isPressed': False,
-                'cmd': 'd',
-                'dstate': -1},
-               {'Number': pinUpButton,
-                'readingPrev': 1,
-                'timeDetected': now,
-                'isPressed': False,
-                'cmd': 'u',
-                'dstate': 1}]
-    state_max = len(state_guiOnOff) - 1
-    # print("pitft.begin() done.")
-
-def getButtonStroke():
     global Buttons
-    for ibutton in range(0, len(Buttons)):
-        button = Buttons[ibutton]
+    for button in Buttons:
         reading = GPIO.input(button['Number'])
-        readingPrev = button['readingPrev']
-        time_ = button['timeDetected']
+        prevReading = button['prevReading']
+        time_ = button['detectedTime']
         now = datetime.datetime.now()
-        if(reading == 0 and readingPrev == 1 and now - time_ > debounce):
+        if(reading == 0 and prevReading == 1 and now - time_ > debounce):
             button['isPressed'] = True
-            button['timeDetected'] = datetime.datetime.now()
+            button['detectedTime'] = datetime.datetime.now()
             # print('Button {} Pressed'.format(button['Number']))
-            return button['Number']
-        button['readingPrev'] = reading
+            # return button['Number']
+        button['prevReading'] = reading
     return
-    
-def timehistoryPlot():
-    global data4THP, Fs, dt
 
+def guiOnOff(x):
+    global pygame, lcd
+    
+    if x == 1:
+        pygame.display.init()
+        lcd = pygame.display.set_mode((320,240))
+        pygame.mouse.set_visible(False)
+    elif x == 0:
+        pygame.display.quit()
+    return
+
+def timehistory_Plot():
+    global data4plot, Fs, dt
+    global pygame, lcd
+     
     dpi = 80
     figure(1, figsize=(320/dpi, 240/dpi))
     clf()
-    plot(time4THP, data4THP)
+    # import pdb;pdb.set_trace()
+    plot(data4plot[:,0], data4plot[:,1:])
     ylabel('ACC (g)')
     xlabel('Time (MM:SS)')
     gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-    gca().set_xlim([time4THP[0], time4THP[-1] + datetime.timedelta(seconds=dt)])
+    gca().set_xlim([data4plot[0,0],
+                    data4plot[0,0] + datetime.timedelta(seconds=timeLengthPlot)])
     gca().yaxis.set_label_coords(-0.10, 0.5)
     subplots_adjust(left=0.13, bottom=0.15, right=0.95, top=0.95)
     savefig('.thp.png', dpi=80)
     close(1)
-
+     
     pygame.display.init()
     pygame.mouse.set_visible(False)
     lcd = pygame.display.set_mode((320, 240))
+     
     feed_surface = pygame.image.load('.thp.png')
     lcd.blit(feed_surface, (0, 0))
     pygame.display.update()
-    sleep(0.05)
+    # print('timehistoryPlot executed')
     return
 
-def plotyy(tk, data_k):
+def display(resampledData):
+    if not resampledData:
+        return
+    if storeData(resampledData):
+        # print('true from storeData')
+        timehistory_Plot()
+    return
+
+    
+def storeData(resampledData):
+    global dataBuff, xaxislimit, data4plot, timeLengthPlot
+
+    data4plot_Ready = False
+    
+    for dataRow in resampledData:
+        tk = dataRow[0]
+        if xaxislimit[0] == 0:
+            xaxislimit = [ceil(tk/timeLengthPlot)*timeLengthPlot,
+                          ceil(tk/timeLengthPlot)*timeLengthPlot+timeLengthPlot]
+        elif tk < xaxislimit[0]:
+            pass
+        elif  tk < xaxislimit[1]:
+            dataBuff.append([datetime.datetime.fromtimestamp(tk)] + \
+                             dataRow[1:])
+        elif xaxislimit[1] <= tk:
+            data4plot = array(dataBuff)
+            dataBuff = []
+            xaxislimit = [round(tk/timeLengthPlot)*timeLengthPlot,
+                          round(tk/timeLengthPlot)*timeLengthPlot + timeLengthPlot]
+            dataBuff.append([datetime.datetime.fromtimestamp(tk)] + \
+                             dataRow[1:])
+            data4plot_Ready = True
+
+    return data4plot_Ready
+
+
+def wind_plot(tk, data_k):
     global Time_plot, Data_plot
     if storeData(tk, data_k):
         dpi = 80
@@ -150,7 +182,7 @@ def plotyy(tk, data_k):
         ax2.set_ylabel('Wind Direction (degree)')
         ax2.set_ylim([0, 540])
         gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-        gca().set_xlim([Time_plot[0], Time_plot[-1] + datetime.timedelta(seconds=dt)])
+        gca().set_xlim([Time_plot[0], Time_plot[0] + datetime.timedelta(seconds=dt)])
         # gca().yaxis.set_label_coords(-0.10, 0.5)
         subplots_adjust(left=0.20, bottom=0.15, right=0.85, top=0.95)
         savefig('.thp.png', dpi=80)
@@ -165,82 +197,46 @@ def plotyy(tk, data_k):
         sleep(0.05)
     return
 
-def storeData(t_ks, data_ks):
-    global time0, time1, Time, Data, Time_plot, Data_plot
-    for i in range(len(t_ks)):
-        tk = t_ks[i]
-        data_k = data_ks[i]
-        if time0 == 0:
-            time0 = ceil(tk/timeLengthPlot)*4
-            time1 = time0 + timeLengthPlot
-        elif tk < time0:
-            pass
-        elif  tk < time1:
-            Time.append(datetime.datetime.fromtimestamp(tk))
-            Data.append(data_k)
-        elif time1 <= tk:
-            Time_plot = array(list(Time))
-            Data_plot = array(list(Data))
-            Time = []
-            Data = []
-            Time.append(datetime.datetime.fromtimestamp(tk))
-            Data.append(data_k)
-            time0 = time1
-            time1 = round(time1/timeLengthPlot+1)*timeLengthPlot
-            return True
-        return False
    
 def end():
     GPIO.cleanup()
 
-def guiOnOff(x):
-    if x == 1:
-        pygame.display.init()
-        lcd = pygame.display.set_mode((320,240))
-        pygame.mouse.set_visible(False)
-    elif x == 0:
-        pygame.display.quit()
-    return
-
 def display_time():
-    if state_guiOnOff[state[1]] == 1:
-        lcd = pygame.display.set_mode((320, 240))
-        pygame.mouse.set_visible(False)
+    global pygame, lcd
 
-        feed_surface = pygame.image.load("sin-curve.png").convert()
-        #lcd.blit(feed_surface, (0,0))
-        
+    if lcd:
         nowStr = datetime.datetime.now().strftime('%Y %m-%d %H:%M:%S')
         color = (0,0,0)
         font_big = pygame.font.SysFont(None, 18)
-        text_surface = font_big.render(nowStr, True, color)
+        text_surface = font_big.render(nowStr, True, color,(255,255,255))
         rect = text_surface.get_rect(topleft=(3,3))
-        rect2 = text_surface.get_rect(topleft=(160,120))
-        lcd.blit(feed_surface,(0,0))
         lcd.blit(text_surface, rect)
-
         pygame.display.update()
 
 # PYGAME
 os.putenv('SDL_FBDEV', '/dev/fb1')
 pygame.init()
 
+# Push Button Setup
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(pinDownButton, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(pinUpButton, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
+for button in Buttons:
+    GPIO.setup(button['Number'], GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 
 if __name__ == '__main__':
 
     # TEST FOR ButtonStroke Detection
-    if False:
-        begin()
+    if True:
+        print('pitft started...')
         while True:
             # PROCESS COMMANDS FROM PUSH BUTTONS
-            n = getButtonStroke()
-            if n:
-                print(n, ' Pressed')
+            pushButton_Polling()
+            
+            for button in Buttons:
+                if button['isPressed'] == True:
+                    print('Button {} pressed.'.format(button['Number']))
+                    button['isPressed'] = False
+                    
 
     # TEST FOR Graphics mode
     if False:
@@ -256,7 +252,7 @@ if __name__ == '__main__':
             print('')
 
     # Test for graphs
-    if True:
+    if False:
     
         from numpy import *
         from matplotlib.pyplot import *
@@ -285,4 +281,3 @@ if __name__ == '__main__':
         pygame.display.update()
 
         sleep(3)
-        pygame.

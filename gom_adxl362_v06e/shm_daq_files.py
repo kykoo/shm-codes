@@ -48,19 +48,23 @@ class shm_daq_files:
                 os.makedirs(directory)
 
         
-    def save(self, times, data):
-        for i in range(len(times)):
-            time_ = floor(times[i] / (self.timeLength)) * self.timeLength
+    def save(self, resampledData):
+        
+        for dataRow in resampledData:
+            time = dataRow[0]
+            time_ = floor(time / (self.timeLength)) * self.timeLength
             datafileName_ = self.hostName + '-' + self.dataType +'-' + \
                             datetime.datetime.fromtimestamp(time_).strftime("%Y%m%d-%H%M%S")
             if len(self.datafileName) == 0:
                 self.datafileName = datafileName_
                 self.dataFile = open(self.datafilePath + self.datafileName, "ba")
+                print('file created: {}'.format(self.datafilePath+self.datafileName))
             elif self.datafileName != datafileName_:
                 self.dataFile.close()
                 self.datafileName = datafileName_
                 self.dataFile = open(self.datafilePath + self.datafileName, "ba")
-            data4file = array_.array('d', [times[i]] + data[i])
+                print('file created: {}'.format(self.datafilePath+self.datafileName))
+            data4file = array_.array('d', dataRow)
             data4file.tofile(self.dataFile)
         return
 
