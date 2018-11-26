@@ -74,6 +74,7 @@ tk = []
 resampledData = []
 nPPS = 0
 
+
 def pushButton_keyStroke_callback():
 
     # pushButton_callback
@@ -326,7 +327,8 @@ while(True):
     #
     # STORE AND DISPLAY DATA
     #
-    accDAQfile.save(resampledData)
+    if accDAQfile.save(resampledData):
+        pitft.toggleStatusLED()
     
     if state_guiOnOff[state[1]] == 1:
         pitft.display(resampledData)

@@ -49,7 +49,8 @@ class shm_daq_files:
 
         
     def save(self, resampledData):
-        
+
+        isDataSaved = False
         for dataRow in resampledData:
             time = dataRow[0]
             time_ = floor(time / (self.timeLength)) * self.timeLength
@@ -66,7 +67,9 @@ class shm_daq_files:
                 print('file created: {}'.format(self.datafilePath+self.datafileName))
             data4file = array_.array('d', dataRow)
             data4file.tofile(self.dataFile)
-        return
+            isDataSaved = True
+        return isDataSaved
+    
 
     def log(self, line):
         time_now = time.mktime(datetime.datetime.now().timetuple())

@@ -59,7 +59,7 @@ Fs = 100.0
 # 4 = TIME HISTORY PLOT
 # 5 = PSD PLOT
 state = 0
-bootSequence = True
+bootSequence = False
 iPPS = 0
 logging = False
 

@@ -67,9 +67,9 @@ dataBuff = []       # data buffer
 xaxislimit = [0, 0] # of the next time history plot 
 data4plot = []      # data corresponding to xaxislimit
 
-
-
-
+# STATUS LED
+statusLED = 0
+statusLED_PIN = 21
 
 
 def pushButton_Polling():
@@ -213,6 +213,18 @@ def display_time():
         lcd.blit(text_surface, rect)
         pygame.display.update()
 
+
+def toggleStatusLED():
+    global statusLED
+
+    if statusLED == 0:
+        statusLED = 1
+        GPIO.output(statusLED_PIN, GPIO.HIGH)
+    else:
+        statusLED = 0
+        GPIO.output(statusLED_PIN, GPIO.LOW)
+        
+        
 # PYGAME
 os.putenv('SDL_FBDEV', '/dev/fb1')
 pygame.init()
@@ -221,7 +233,7 @@ pygame.init()
 GPIO.setmode(GPIO.BCM)
 for button in Buttons:
     GPIO.setup(button['Number'], GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
+GPIO.setup(statusLED_PIN, GPIO.OUT)
 
 if __name__ == '__main__':
 
