@@ -73,6 +73,7 @@ daqCC_Values = {'t':None, 'CC':None, 'valXYZ':None}
 tk = []
 resampledData = []
 nPPS = 0
+writeCount = 0
 
 
 def pushButton_keyStroke_callback():
@@ -301,9 +302,11 @@ sleep(1)
 # Start Modules and Class
 keyStroke.begin()
 shm_serial.begin()
-accDAQfile = shm_daq_files('acc',60)
+accDAQfile = shm_daq_files('acc',3600*24)
 
+print('-------------------------')
 print('gom_adxl362_v06e started.')
+print('-------------------------')
 
 # LOOP
 while(True):
@@ -328,7 +331,12 @@ while(True):
     # STORE AND DISPLAY DATA
     #
     if accDAQfile.save(resampledData):
-        pitft.toggleStatusLED()
+        # Toggle LED every n-writing
+        n = 5
+        writeCount += 1
+        if writeCount > n:
+            pitft.toggleStatusLED()
+            writeCount = 0
     
     if state_guiOnOff[state[1]] == 1:
         pitft.display(resampledData)
