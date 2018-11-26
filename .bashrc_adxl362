@@ -22,7 +22,9 @@ export PATH=$PATH:/home/pi/codes/shm-codes/nconf
 
 output=$(/bin/pidof -x adxl362_tsrs.py)
 if [ -z "$output" ]; then
-    /usr/bin/sudo /home/pi/codes/shm-codes/_06_GO_HAT_ADXL362_tsrs/adxl362_tsrs.py
+    cd /home/pi/codes/shm-codes/gom_adxl362_v06e
+    # /usr/bin/sudo /home/pi/codes/shm-codes/_06_GO_HAT_ADXL362_tsrs/adxl362_tsrs.py
+    /usr/bin/sudo /home/pi/codes/shm-codes/gom_adxl362_v06e/gom_adxl362_v06e.py
 fi
 
 
