@@ -163,9 +163,9 @@ def parse_rx_buff():
             # AUTO-STARTUP
             if bootSequence is True and shm_serial.rx_buff[0:8] == '0,state=':
                 state_ = int(shm_serial.rx_buff[8])
-                if state_ == 2 or state_ == 3:
+                if state_ == 2:
                     pitft.Buttons[1]['isPressed'] = True
-                if state_ == 4:
+                if state_ == 3:
                     bootSequence = False  # FINISH BOOT SEQEUNCE
 
         # UPDATE ppsCC_Time
