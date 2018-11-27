@@ -302,7 +302,8 @@ sleep(1)
 # Start Modules and Class
 keyStroke.begin()
 shm_serial.begin()
-accDAQfile = shm_daq_files('acc',3600*24)
+# accDAQfile = shm_daq_files('acc',3600*24)
+accDAQfile = shm_daq_files('acc',60)
 
 print('-------------------------')
 print('gom_adxl362_v06e started.')
