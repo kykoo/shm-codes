@@ -22,6 +22,7 @@
 #include <Arduino.h>
 #include <Adafruit_GPS_hw.h>
 #include <Time.h>
+#define GOM_DEBUG
 //#include <stdio.h>
 //#include <string.h>
 
@@ -31,6 +32,8 @@
 #include <stdint.h>
 #include <SPI.h>
 #include <ADXL362.h>
+#define SENSITIVITY 0.004
+
 Adafruit_GPS GPS(&Serial3);
 boolean usingInterrupt = false;
 void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
@@ -76,7 +79,6 @@ button buttons[2];
 //
 // VARIABLES FOR INTEGRATION
 //
-int outPin = 2;
 int state = 0;      // the current state of the output pin
 
 
@@ -86,6 +88,10 @@ char buff_L[6];
 char buff_x[8];
 char buff_y[8];
 char buff_z[8];
+
+int statusLED_PIN = 13;
+int statusLED = 0;
+unsigned int countExec = 0;
 
 
 //
@@ -136,6 +142,39 @@ ISR(TIMER1_CAPT_vect)
 	newPPS = true;
 }
 
+void ADXL362_begin(){
+	xl.begin(53);                   // Setup SPI protocol, issue device soft reset
+	xl.beginMeasure();              // Switch ADXL362 to measure mode  
+	Serial.println("0,ADXL362: Start Measuring...");
+   
+}
+
+boolean isValidPPS(){
+	// Check if a PPS has exact time information available
+	// obtained by parsing NMEA sentences about 0.5sec before the PPS
+	//
+	//Serial.print("0,PPS,");
+	//Serial.println(count_PPS_H - count_NMEA_PARSING_H);
+	// 0.6144 sec ago
+	if(count_PPS_H - count_NMEA_PARSING_H < F_CPU/160000*1.5){
+		return true;
+	}else{
+		return false;
+	}
+
+	/*
+	  if( dCC < 8e6 ){
+	  Serial.print("0,Valid PPS,");
+	  Serial.print(dCC);
+	  return true;
+	  }else{<
+	  Serial.print("0,Invalid PPS,");
+	  Serial.print(dCC);
+	  return false;
+	  }
+	*/
+}
+
 void setup()
 {
 	for(int i=0; i<2; i++){
@@ -151,7 +190,7 @@ void setup()
 	//
 	Serial.begin(115200);         // Initialize the serial port to the PC
 	Serial.println(F("0,Wireless DAQ System v1.0..."));
-	Serial.println(F("0,- Configuring DAQ system..."));
+ 	Serial.println(F("0,- Configuring DAQ system..."));
 
 	//
 	// SETUP FOR GPS
@@ -248,131 +287,102 @@ void setup()
 	for(int i=0; i<2; i++){
 		pinMode(buttons[i].ButtonNumber,INPUT);
 	}
-	pinMode(outPin,OUTPUT);
+
+    // StatusLED
+	pinMode(statusLED_PIN,OUTPUT);
+    
 	//
 	// OPERATION MODE
 	//
 	state = 1;
 
+    
 }
 
-void ADXL362_begin(){
-	xl.begin(53);                   // Setup SPI protocol, issue device soft reset
-	xl.beginMeasure();              // Switch ADXL362 to measure mode  
-	Serial.println("0,ADXL362: Start Measuring...");
-   
+
+//--------------------------------------------------------
+//        STATES OF MACHINE
+//
+//						   useInterrupt Serial3  ADXL362
+// state 1: PPS	   mode	   true			 working   dead
+// state 2: Silent mode	   false		 dead	   dead
+// state 3: DAQ	   mode	   false		 dead	  working
+
+void stateTransition(int cmd){
+     
+	if( state == 1 && cmd == 117  ){
+
+        // STATE=1 TO STATE=2: PPS-MODE TO SILENT-MODE
+        
+        useInterrupt(false);		// useInterrupt
+        Serial3.end();				// Serial3 
+        TIMSK1 &= ~(_BV(ICIE1)); 	// Disable PPS-Interrupt
+                                    // ADXL362
+        state = 2;
+        Serial.println("0,state=2");
+        
+    }else if(state==2 && cmd == 117){
+
+        // STATE=2 TO STATE=3: SILENT-MODE TO DAQ MODE
+
+        TIMSK1 |= _BV(ICIE1); 		// Enable PPS-Interrupt
+        ADXL362_begin();  			// ADXL362
+        
+        firstReading = true;
+        state = 3;
+        Serial.println("0,state=3");
+        Serial.flush();
+        delay(1000);
+        
+    }else if(state==3 && cmd == 117){
+
+        // STATE=3: DO NOTHING
+        
+        Serial.println("0,state=3");
+        
+    }else if(state == 3 && cmd == 100){
+
+        // STATE=3 TO STATE 2: DAQ-MODE TO SLIENT MODE
+        
+        TIMSK1 &= ~(_BV(ICIE1)); // Disable PPS-Interrupt
+        
+        state = 2;
+        Serial.println("");
+        Serial.println("0,state=2");
+            
+    }else if(state ==2 && cmd == 100){
+        
+        // STATE=2 TO SATE 1: SILENT-MODE TO PPS-MODE
+        
+        Serial3.begin(9600);   	// Serial3
+        useInterrupt(true);		// useInterrupt
+        TIMSK1 |= _BV(ICIE1); 	// Enable PPS-Interrupt
+        
+        newPPS = false;
+        state = 1;
+        Serial.println("0,state=1");
+            
+    }else if(state ==1 && cmd == 100){
+
+        // STATE=1: DO NOTHING
+
+        Serial.println("0,state=1");
+    }
+    return;
 }
 
-boolean isValidPPS(){
-	// Check if a PPS has exact time information available
-	// obtained by parsing NMEA sentences about 0.5sec before the PPS
-	//
-	//Serial.print("0,PPS,");
-	//Serial.println(count_PPS_H - count_NMEA_PARSING_H);
-	// 0.6144 sec ago
-	if(count_PPS_H - count_NMEA_PARSING_H < F_CPU/160000*1.5){
-		return true;
-	}else{
-		return false;
-	}
 
-	/*
-	  if( dCC < 8e6 ){
-	  Serial.print("0,Valid PPS,");
-	  Serial.print(dCC);
-	  return true;
-	  }else{<
-	  Serial.print("0,Invalid PPS,");
-	  Serial.print(dCC);
-	  return false;
-	  }
-	*/
-}
+//
+// STATE OPERATION
+//
 
-void loop()
-{
-
-	//
-	// ACCEPTING COMMANDS
-	//
-	int cmd = 0;
-	if(Serial.available() > 0){
-		cmd = Serial.read();
-	}
-
-	//
-	// CALLBACK FUNCTIONS FOR A SWITCH PRESSING
-	//
-	//                          useInterrupt  Serial3  ADSL362
-	// state 1: PPS    mode    true          working   dead
-	// state 2: Silent mode    false         dead      dead
-	// state 3: DAQ    mode    true         dead      working
-	// state 4: DAQ    mode    true         dead      working
-	// state 5: DAQ    mode    true         dead      working
-
-	// UP-BUTTON
-	if( cmd == 117 ){
-		if(state==1){
-			// PPS-MODE TO SILENT-MODE
-			useInterrupt(false);
-			Serial3.end();
-			TIMSK1 &= ~(_BV(ICIE1)); // Disable PPS-Interrupt
-			state = 2;
-			Serial.println("0,state=2");
-		}else if(state==2){
-			// SILENT-MODE TO DAQ MODE
-			TIMSK1 |= _BV(ICIE1); // Enable PPS-Interrupt
-			ADXL362_begin();
-			firstReading = true;
-			state = 3;
-			Serial.println("0,state=3");
-		}else if(state==3){
-			state = 4;
-			Serial.println("0,state=4");
-		}else if(state==4){
-			state = 5;
-			Serial.println("0,state=5");
-		}else if(state == 5){
-			// do nothing
-			Serial.println("0,state=5");
-		}
-	}
-
-	// DOWN-BUTTON
-	if( cmd == 100 ){
-		if(state == 5){
-			state = 4;
-			Serial.println("");
-			Serial.println("0,state=4");
-		}else if(state == 4){
-			state = 3;
-			Serial.println("");
-			Serial.println("0,state=3");
-		}else if(state == 3){
-			// DAQ-MODE TO SLIENT MODE
-			TIMSK1 &= ~(_BV(ICIE1)); // Disable PPS-Interrupt
-			state = 2;
-			Serial.println("");
-			Serial.println("0,state=2");
-		}else if(state ==2){
-			// SILENT-MODE TO PPS-MODE
-			Serial3.begin(9600);
-			useInterrupt(true);
-			TIMSK1 |= _BV(ICIE1); // Enable PPS-Interrupt
-			newPPS = false;
-			state = 1;
-			Serial.println("0,state=1");
-		}else if(state ==1){
-			// NOTHING CHANGES
-			Serial.println("0,state=1");
-		}
-	}
-
-
+void stateOperation(){
+        
 	//
 	// PPS-MODE OPERATION
 	//
-	if(state==1){
+    
+	if(state == 1){
 		// Parsing NMEA
 		if (GPS.newNMEAreceived()) {
 			if (!GPS.parse(GPS.lastNMEA())){
@@ -405,18 +415,22 @@ void loop()
 		newPPS = false;
 	}
 
+    
 	//
 	// SILET-MODE OPERATIONS
 	//
+    
 	if(state==2){
 		delay(100);
 		newPPS = false;
 	}
 
+    
 	//
 	// DAQ-MODE OPERATIONS
 	//
-	if(state==3 | state==4 | state ==5){
+    
+	if(state==3){
 
 		// outputs time and clock-counts of pps
 		if(newPPS){
@@ -424,12 +438,15 @@ void loop()
 			Serial.print(count_PPS_H);
 			Serial.print(",");
 			Serial.println(count_PPS_L);
+            newPPS = false;
 		}
-		newPPS = false;
 		
 		if(xl.dataReadyTimeout()==1){
 			Serial.println("0,Data Ready Timeout");
 			Serial.println("0,Restarting ADXL362");
+            Serial.flush();
+            delay(1000);
+                
 			ADXL362_begin();
 			firstReading = true;
 			return;
@@ -446,21 +463,7 @@ void loop()
 			// If First Reading, discard it.
 			firstReading = false;
 		}else{
-			// OLD CODE
-  		    // Serial.print(F("2,"));
-			// Serial.print(count_DAQ_0_H);
-			// Serial.print(F(","));
-			// Serial.print(count_DAQ_0_L);
-			// Serial.print(F(","));
-			// Serial.print((float)XValue *0.001,4);
-			// Serial.print(",");
-			// Serial.print((float)YValue *0.001,4);
-			// Serial.print(",");
-			// Serial.println((float)ZValue *0.001,4);
-			// output daq CC and value
-
-
-			// NEW CODE
+			// NEW CODE: Fixed width for measured values
 			sprintf(buff_H,"%10lu",count_DAQ_0_H);
 			sprintf(buff_L,"%5u",  count_DAQ_0_L);
 			strcpy(buff, "2,");
@@ -471,18 +474,49 @@ void loop()
 			Serial.print(buff);
 			if(XValue >= 0.0)
 				Serial.print(" ");
-			Serial.print((float)XValue *0.001,4);
+			Serial.print((float)XValue *SENSITIVITY,4);
 			Serial.print(",");
 			if(YValue >= 0.0)
 				Serial.print(" ");
-			Serial.print((float)YValue *0.001,4);
+			Serial.print((float)YValue *SENSITIVITY,4);
 			Serial.print(",");
 			if(ZValue >= 0.0)
 				Serial.print(" ");
-			Serial.println((float)ZValue *0.001,4);
-			
+			Serial.println((float)ZValue *SENSITIVITY,4);
 		}
 		count_DAQ_0_H = count_DAQ_1_H;
 		count_DAQ_0_L = count_DAQ_1_L;
 	}
+}
+
+void toggleLED(){
+    if(statusLED ==0){
+        digitalWrite(statusLED_PIN,HIGH);
+        statusLED = 1;
+    }else{
+        digitalWrite(statusLED_PIN,LOW);
+        statusLED = 0;
+    }
+    return;
+}
+
+void loop()
+{
+	// ACCEPTING COMMANDS THROUGH SERIAL
+	int cmd = 0;
+	if(Serial.available() > 0)
+        cmd = Serial.read();
+
+    // STATE TRANSITION ROUTINE
+    stateTransition(cmd);
+
+    // STATE OPERATION ROUTINES
+    stateOperation();
+
+    // STATUS-LED
+    countExec++;
+    if(countExec>10){
+        toggleLED();
+        countExec = 0;
+    }
 }

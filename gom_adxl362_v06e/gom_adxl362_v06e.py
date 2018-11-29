@@ -41,7 +41,14 @@ from scipy import signal
 import array as array_
 
 
-Fs = 100.0
+Fs = 200.0
+SENSITIVITY = 0.004
+# |    | Sensitivity |
+# |----+-------------|
+# | 2g |       0.001 |
+# | 4g |       0.002 |
+# | 8g |       0.004 |
+
 
 # PiTFT CONFIGURATION
 pitft.timehistoryPlot = 4  # of sec for time history plot
@@ -291,8 +298,8 @@ def parse_rx_buff():
 
 
 # RESET GOM
-GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
 GPIO.setup(16, GPIO.OUT)
 GPIO.output(16, GPIO.LOW)
 sleep(1)
@@ -325,7 +332,6 @@ while(True):
     # READ OUTPUTS FROM GOM
     #
     shm_serial.rx_polling()
-
     parse_rx_buff()
 
     #

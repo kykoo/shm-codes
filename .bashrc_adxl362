@@ -20,11 +20,11 @@ export PATH=$PATH:/home/pi/codes/shm-codes/nconf
 
 # EXECUTE adxl362_tsrs.py ONLY IF IT IS NOT RUNNING SOMEWHERE ELSE
 
-output=$(/bin/pidof -x gom_adxl362_v06e.py)
+output=$(/bin/pidof -x gom_adxl362_v06e_400Hz.py)
 if [ -z "$output" ]; then
     cd /home/pi/codes/shm-codes/gom_adxl362_v06e
     # /usr/bin/sudo /home/pi/codes/shm-codes/_06_GO_HAT_ADXL362_tsrs/adxl362_tsrs.py
-    /usr/bin/sudo /home/pi/codes/shm-codes/gom_adxl362_v06e/gom_adxl362_v06e.py
+    /usr/bin/sudo /home/pi/codes/shm-codes/gom_adxl362_v06e/gom_adxl362_v06e_400Hz.py
 fi
 
 

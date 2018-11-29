@@ -199,6 +199,7 @@ def wind_plot(tk, data_k):
 
    
 def end():
+    write2LED(0)
     GPIO.cleanup()
 
 def display_time():
@@ -219,21 +220,29 @@ def toggleStatusLED():
 
     if statusLED == 0:
         statusLED = 1
-        GPIO.output(statusLED_PIN, GPIO.HIGH)
+        write2LED(statusLED)
     else:
         statusLED = 0
+        write2LED(statusLED)
+        
+def write2LED(cmd):
+    if cmd == 1:
+        GPIO.output(statusLED_PIN, GPIO.HIGH)
+    elif cmd == 0:
         GPIO.output(statusLED_PIN, GPIO.LOW)
         
-        
+    
 # PYGAME
 os.putenv('SDL_FBDEV', '/dev/fb1')
 pygame.init()
 
 # Push Button Setup
 GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
 for button in Buttons:
     GPIO.setup(button['Number'], GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(statusLED_PIN, GPIO.OUT)
+GPIO.output(statusLED_PIN, GPIO.LOW)
 
 if __name__ == '__main__':
 
