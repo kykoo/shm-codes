@@ -18,14 +18,30 @@ export PATH=$PATH:/home/pi/codes/shm-codes/nconf
 #export PYTHONPATH=$PYTHONPATH:/home/pi/codes/ds18b20
 
 
-# EXECUTE adxl362_tsrs.py ONLY IF IT IS NOT RUNNING SOMEWHERE ELSE
+# EXECUTE ONLY ON CONSOLE
 
-output=$(/bin/pidof -x gom_adxl362_v06e_400Hz.py)
-if [ -z "$output" ]; then
-    cd /home/pi/codes/shm-codes/gom_adxl362_v06e
-    # /usr/bin/sudo /home/pi/codes/shm-codes/_06_GO_HAT_ADXL362_tsrs/adxl362_tsrs.py
-    /usr/bin/sudo /home/pi/codes/shm-codes/gom_adxl362_v06e/gom_adxl362_v06e_400Hz.py
+SESSION_TYPE=console
+if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; then
+   SESSION_TYPE=remote/ssh
+   # many other tests omitted
+else
+	case $(ps -o comm= -p $PPID) in
+	     sshd|*/sshd) SESSION_TYPE=remote/ssh;;
+	esac
 fi
+
+if [ "$SESSION_TYPE" = console ]; then
+   # EXECUTE adxl362_tsrs.py ONLY IF IT IS NOT RUNNING SOMEWHERE ELSE
+
+   output=$(/bin/pidof -x gom_adxl362_v06e_400Hz.py)
+   if [ -z "$output" ]; then
+       cd /home/pi/codes/shm-codes/gom_adxl362_v06e
+       # /usr/bin/sudo /home/pi/codes/shm-codes/_06_GO_HAT_ADXL362_tsrs/adxl362_tsrs.py
+       /usr/bin/sudo /home/pi/codes/shm-codes/gom_adxl362_v06e/gom_adxl362_v06e_400Hz.py
+   fi
+fi
+
+
 
 
 #======================================================================

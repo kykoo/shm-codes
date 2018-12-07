@@ -157,11 +157,17 @@ def parse_rx_buff():
         
         # msgID = 0: MESSAGES
         if shm_serial.rx_buff[0] == 48: # 0
+            msg = ''
             if printed_with_end_option:
                 sys.stdout.write('\n')
                 printed_with_end_option = False 
-            logger.info(shm_serial.rx_buff[:match.start()].decode('UTF-8'))
-
+            try:
+                msg = shm_serial.rx_buff[:match.start()].decode('UTF-8')
+                logger.info(msg)
+            except:
+                logger.debug("decoding message of msgID=0 failed. Byte array={}".format(
+                    shm_serial.rx_buff[:match.start()]))
+                
             # AUTO-STARTUP
             if bootSequence is True and shm_serial.rx_buff[0:8].decode('UTF-8') == '0,state=':
                 ARD_state = shm_serial.rx_buff[8]
@@ -172,9 +178,9 @@ def parse_rx_buff():
 
         # msgID = 1: UPDATE ppsCC_Time
         elif shm_serial.rx_buff[0] == 49: # 1
-            logger.info(shm_serial.rx_buff[:match.start()].decode('UTF-8'))
-
             try:
+                logger.info(shm_serial.rx_buff[:match.start()].decode('UTF-8'))
+
                 rx_buff_split = shm_serial.rx_buff[:match.start()].decode('UTF-8').split(',')
                 t = float(rx_buff_split[3])
                 CC = float(rx_buff_split[1])*2**16 + float(rx_buff_split[2])
@@ -258,11 +264,11 @@ def parse_rx_buff():
 
         # msgID = 3 : UPDATE ppsCC_Time based on CC only
         elif shm_serial.rx_buff[0] == 51: # 3
-
-            ppsString = '('+shm_serial.rx_buff[:match.start()].decode('UTF-8') + ')'
-            # sys.stdout.write(outString.expandtabs(53-len(outString)+2-2))
-            logger.debug(ppsString[1:-1])
             try:
+                ppsString = '('+shm_serial.rx_buff[:match.start()].decode('UTF-8') + ')'
+                # sys.stdout.write(outString.expandtabs(53-len(outString)+2-2))
+                # logger.debug(ppsString[1:-1])
+
                 rx_buff_split = shm_serial.rx_buff[:match.start()].decode('UTF-8').split(',')
                 CC = float(rx_buff_split[1])*2**16 + float(rx_buff_split[2])
                 dT = float(round((CC - ppsCC_Time['CC']) / ppsCC_Time['Fclk']))

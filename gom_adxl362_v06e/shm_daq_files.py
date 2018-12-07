@@ -51,6 +51,14 @@ class shm_daq_files:
             datafileName_ = self.hostName + '-' + self.dataType +'-' + \
                             datetime.datetime.fromtimestamp(time_).strftime("%Y%m%d-%H%M%S")
             if len(self.datafileName) == 0:
+                # CREATING THE FIRST DATA FILE
+                
+                # calculate how long daq can be carried out 
+                s = os.statvfs('/')
+                free_space = (s.f_bavail * s.f_frsize) / 1024
+                logger.info('Free Disk Space = {:.0f} (MB), DAQ time-length = {:.1f} (hr)'.format(
+                    free/1024,free/(8*4*400*3600)))
+                
                 self.datafileName = datafileName_
                 self.dataFile = open(self.datafilePath + self.datafileName, "ba")
                 logger = logging.getLogger(__name__)
