@@ -306,7 +306,7 @@ shm_serial.begin()
 # accDAQfile = shm_daq_files('acc',3600*24)
 #accDAQfile = shm_daq_files('acc',60)
 #accDAQfile = shm_daq_files('acc',3600)
-accDAQfile = shm_daq_files('acc',60,200)
+accDAQfile = shm_daq_files('acc',600,200)
 # Logger Setup
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
