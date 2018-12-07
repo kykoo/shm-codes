@@ -12,6 +12,7 @@ import os
 from numpy import *
 import time
 import logging
+import glob
 
 
 class shm_daq_files:
@@ -23,8 +24,9 @@ class shm_daq_files:
     datafileName = ''
     dataFile = ''
     now = 0
+    minDiskSpace = 0 # MB, If free diskspace is lower than this, delete datafiles
 
-    def __init__(self, dataType, timeLength):
+    def __init__(self, dataType, timeLength, minDiskSpace = 100):
         self.dataType = dataType
         self.timeLength = timeLength
         self.hostName = socket.gethostname()
@@ -32,6 +34,7 @@ class shm_daq_files:
         self.datafileName = ''
         self.dataFile = ''
         self.now = datetime.datetime.now()
+        self.minDiskSpace = minDiskSpace
 
         # CREATE DIRECTORY IF NOT EXISTS
         directories = []
@@ -40,36 +43,51 @@ class shm_daq_files:
         for directory in directories:
             if not os.path.exists(directory):
                 os.makedirs(directory)
+        return
 
-        
+
     def save(self, resampledData):
-
+               
         isDataSaved = False
+        logger = logging.getLogger(__name__)
         for dataRow in resampledData:
             time = dataRow[0]
             time_ = floor(time / (self.timeLength)) * self.timeLength
             datafileName_ = self.hostName + '-' + self.dataType +'-' + \
                             datetime.datetime.fromtimestamp(time_).strftime("%Y%m%d-%H%M%S")
             if len(self.datafileName) == 0:
-                # CREATING THE FIRST DATA FILE
-                
-                # calculate how long daq can be carried out 
+                # CHECK FREE DISK-SPACE 
                 s = os.statvfs('/')
-                free_space = (s.f_bavail * s.f_frsize) / 1024
-                logger.info('Free Disk Space = {:.0f} (MB), DAQ time-length = {:.1f} (hr)'.format(
-                    free/1024,free/(8*4*400*3600)))
-                
+                free_space = (s.f_bavail * s.f_frsize) # Bytes
+                logger.info('Free DiskSpace= {:,.0f}(MB), DAQ timeLength= {:.0f}(Hr)'.format(
+                    free_space/1024/1000,free_space/(8*4*400*3600)))
+
+                # CREATING THE FIRST DATA FILE
                 self.datafileName = datafileName_
                 self.dataFile = open(self.datafilePath + self.datafileName, "ba")
-                logger = logging.getLogger(__name__)
-                logger.info('file created: {}'.format(self.datafileName) +\
+                logger.info('File Created: {}'.format(self.datafileName) +\
                             ' ' * (53 - 14 - len(self.datafileName)))
             elif self.datafileName != datafileName_:
                 self.dataFile.close()
+
+                # DELETE FILES IF FREE DISK-SPACE IS LOWER THAN minDiskSpace
+                files = sorted(glob.glob(
+                    self.datafilePath + self.hostName + '-' + self.dataType + '*'))
+                s = os.statvfs('/')
+                # logger.info('minDiskSpace={}'.format(self.minDiskSpace))
+                while (s.f_bavail*s.f_frsize)/1024/1000 < self.minDiskSpace:
+                    os.remove(files[0])
+                    str = 'File Deleted: ' + os.path.basename(files[0]) + ' FDS= {:,.0f}'.format(
+                        (s.f_bavail*s.f_frsize)/1024/1000)
+                    logger.info(str + ' ' * (53 - len(str)))
+                    s = os.statvfs('/')
+                    files = sorted(glob.glob(
+                        self.datafilePath + self.hostName + '-' + self.dataType + '*'))
+
+                # MOVES TO NEXT FILE
                 self.datafileName = datafileName_
                 self.dataFile = open(self.datafilePath + self.datafileName, "ba")
-                logger = logging.getLogger(__name__)
-                logger.info('file created: {}'.format(self.datafileName) +\
+                logger.info('File Created: {}'.format(self.datafileName) +\
                             ' ' * (53 - 14 - len(self.datafileName)))
             data4file = array_.array('d', dataRow)
             data4file.tofile(self.dataFile)
