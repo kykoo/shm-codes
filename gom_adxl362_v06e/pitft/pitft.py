@@ -28,6 +28,8 @@ import os
 import matplotlib.dates as mdates
 from scipy import signal
 import array as array_
+import multiprocessing
+import logging
 
 
 # BUTTON SETTING
@@ -66,11 +68,17 @@ NFFT = 2**9
 dataBuff = []       # data buffer 
 xaxislimit = [0, 0] # of the next time history plot 
 data4plot = []      # data corresponding to xaxislimit
+lock_data4plot = multiprocessing.Lock()
 
 # STATUS LED
 statusLED = 0
 statusLED_PIN = 21
 count_toggleStatusLED = 0
+
+plotUpdated = multiprocessing.Value('i', 0)
+lock_plotUpdated = multiprocessing.Lock()
+nAverageOfPSD = multiprocessing.Value('i', 0)
+Pxx = multiprocessing.Array('d', [0.0]* (3*(int(NFFT/2)+1)))
 
 def pushButton_Polling():
     
@@ -99,15 +107,24 @@ def guiOnOff(x):
         pygame.display.quit()
     return
 
-def plotTimeHistory():
-    global data4plot, Fs, dt
-    global pygame, lcd
-     
+def genTimeHistoryPlot(
+        data4plot, lock_data4plot, plotUpdated, lock_plotUpdated):
+    #global data4plot, Fs, dt
+    #global pygame, lcd
+    import datetime
+    from matplotlib.pyplot import plot, ylabel, xlabel, gca, subplots_adjust, savefig, close
+    import matplotlib.dates as mdates
+
     dpi = 80
     figure(1, figsize=(320/dpi, 240/dpi))
     clf()
+     
     # import pdb;pdb.set_trace()
+     
+    lock_data4plot.acquire()
     plot(data4plot[:,0], data4plot[:,1:])
+    lock_data4plot.release()
+     
     ylabel('ACC (g)')
     xlabel('Time (MM:SS)')
     gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
@@ -117,57 +134,89 @@ def plotTimeHistory():
     subplots_adjust(left=0.13, bottom=0.15, right=0.95, top=0.95)
     savefig('.thp.png', dpi=80)
     close(1)
-     
-    pygame.display.init()
-    pygame.mouse.set_visible(False)
-    lcd = pygame.display.set_mode((320, 240))
-     
-    feed_surface = pygame.image.load('.thp.png')
-    lcd.blit(feed_surface, (0, 0))
-    pygame.display.update()
+    
+    lock_plotUpdated.acquire()
+    plotUpdated.value = 1
+    lock_plotUpdated.release()
+   
     # print('timehistoryPlot executed')
+
     return
 
-def plotPSD():
-    global dataPSD, nAverageOfPSD, NFFT, Pxx, Fs
+def displayGraph(graphType, resampledData):
+    # graphType = 0: TimeHistory Plot
+    #             1: PSD plot
+    global lock_data4plot, pygame, lcd, plotUpdated, lock_plotUpdated
+    global nAverageOfPSD, Pxx
 
-    nAverageOfPSD += 1
+    logger  = logging.getLogger(__name__)
+    
+    if not resampledData:
+        return
+    
+    if storeData(resampledData):
+        # MULTIPROCESSING 
+        plotUpdated.value = 0
+
+        if graphType == 0:  # time history plot 
+            p = multiprocessing.Process(target=genTimeHistoryPlot,args=(
+                data4plot, lock_data4plot, plotUpdated, lock_plotUpdated,))
+            p.start()
+        elif graphType == 1: # PSD plot 
+            # genPSD_Plot
+            p = multiprocessing.Process(target=genPSD_Plot,args=(
+                data4plot, lock_data4plot, plotUpdated, lock_plotUpdated,
+                Fs, NFFT, nAverageOfPSD, Pxx))
+            p.start()
+
+    # DRAW PLOT IF UPDATED
+    lock_plotUpdated.acquire()
+    if plotUpdated.value == 1:
+        feed_surface = pygame.image.load('.thp.png')
+        lcd.blit(feed_surface, (0, 0))
+        pygame.display.update()
+        plotUpdated.value = 0
+    lock_plotUpdated.release()
+    
+    return
+
+def genPSD_Plot(data4plot, lock_data4plot, plotUpdated, lock_plotUpdated,
+                Fs, NFFT, nAverageOfPSD, Pxx):
+    from matplotlib.pyplot import semilogy, ylabel, xlabel, gca, subplots_adjust, savefig, close
+    from scipy import signal
+    from numpy import array, transpose 
+
+    nAverageOfPSD.value += 1
+    Pxx_ = array(Pxx).reshape((3,int(NFFT/2)+1)).transpose()
+
+    n = nAverageOfPSD.value 
+    # logger = logging.getLogger(__name__)
     dpi = 80
     figure(1, figsize=(320/dpi, 240/dpi))
     clf()
+    lock_data4plot.acquire()
     for i in range(3):
-        f, Pxx_ = signal.welch(signal.detrend(data4PSD[:, i]), int(Fs), nperseg=NFFT)
-        Pxx[:, i] = (nAverageOfPSD - 1) / nAverageOfPSD * Pxx[:, i] + Pxx_ / (nAverageOfPSD)
-        semilogy(f, Pxx[:, i])
+        f, Pxx__ = signal.welch(signal.detrend(data4plot[:, i+1]), int(Fs),
+                                nperseg=NFFT)
+        Pxx_[:, i] = (n-1.0)/n*Pxx_[:, i] + Pxx__/n    
+        semilogy(f, Pxx_[:,i])
+    lock_data4plot.release()
     xlabel('Frequency (Hz)')
     ylabel('PSD (g^2/Hz)')
     Fn = Fs/2
     gca().set_xlim([0, Fn])
     gca().yaxis.set_label_coords(-0.10, 0.5)
     subplots_adjust(left=0.13, bottom=0.15, right=0.95, top=0.95)
-    savefig('.psd.png', dpi=80)
+    lock_plotUpdated.acquire()
+    savefig('.thp.png', dpi=80)
+    plotUpdated.value = 1
+    lock_plotUpdated.release()
     close(1)
 
-    pygame.display.init()
-    pygame.mouse.set_visible(False)
-    lcd = pygame.display.set_mode((320, 240))
-    feed_surface = pygame.image.load('.psd.png')
-    lcd.blit(feed_surface, (0, 0))
-    pygame.display.update()
-    sleep(0.05)
-    return
-
-def displayGraph(graphType, resampledData):
-    if not resampledData:
-        return
-    if storeData(resampledData):
-        # print('true from storeData')
-        
-        if graphType == 0:
-            plotTimeHistory()
-        elif graphType = 1:
-            plotPSD()
-            
+    # RETURNING Pxx average
+    for i in range(3):
+        for j in range(int(NFFT/2)+1):
+            Pxx[i*(int(NFFT/2)+1)+j] = Pxx_[j,i]
     return
 
     
@@ -175,7 +224,7 @@ def storeData(resampledData):
     global dataBuff, xaxislimit, data4plot, timeLengthPlot
 
     data4plot_Ready = False
-    
+
     for dataRow in resampledData:
         tk = dataRow[0]
         if xaxislimit[0] == 0:
@@ -187,7 +236,11 @@ def storeData(resampledData):
             dataBuff.append([datetime.datetime.fromtimestamp(tk)] + \
                              dataRow[1:])
         elif xaxislimit[1] <= tk:
+
+            lock_data4plot.acquire()
             data4plot = array(dataBuff)
+            lock_data4plot.release()
+            
             dataBuff = []
             xaxislimit = [round(tk/timeLengthPlot)*timeLengthPlot,
                           round(tk/timeLengthPlot)*timeLengthPlot + timeLengthPlot]

@@ -119,9 +119,11 @@ def pushButton_keyStroke_callback():
     keyStroke.keyNumber = 0
 
     # ON/OFF GUI
-    if state_guiOnOff[state[1]] == 0:
-        # pitft.guiOnOff(state_guiOnOff[state[1]])
-        pitft.guiOnOff(0)
+    if arduinoCMD:
+        pitft.guiOnOff(state_guiOnOff[state[1]])
+        #if state_guiOnOff[state[1]] == 0:
+        #pitft.guiOnOff(state_guiOnOff[state[1]])
+        # pitft.guiOnOff(0)
 
     # SENDING arduinoCMD
     if arduinoCMD:
@@ -163,6 +165,7 @@ def parse_rx_buff():
                 printed_with_end_option = False 
             try:
                 msg = shm_serial.rx_buff[:match.start()].decode('UTF-8')
+                msg = msg + ' ' * (53 - len(msg))
                 logger.info(msg)
             except:
                 logger.debug("decoding message of msgID=0 failed. Byte array={}".format(
@@ -351,12 +354,12 @@ try:
         # STORE AND DISPLAY DATA
         #
 
-        if not resampledData:
+        if resampledData:
             if accDAQfile.save(resampledData):
                 pitft.toggleStatusLED(5)
 
             if state[1] > 3:
-                pitft.displayGraph(state[1], resampledData)
+                pitft.displayGraph(state[1]-4, resampledData)
                 pitft.display_time()
             
             #if state_guiOnOff[state[1]] == 1:
