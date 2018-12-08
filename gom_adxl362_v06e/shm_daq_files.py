@@ -24,9 +24,9 @@ class shm_daq_files:
     datafileName = ''
     dataFile = ''
     now = 0
-    minDiskSpace = 0 # MB, If free diskspace is lower than this, delete datafiles
+    minFreeDiskSpace = 0 # MB, If free diskspace is lower than this, delete datafiles
 
-    def __init__(self, dataType, timeLength, minDiskSpace = 100):
+    def __init__(self, dataType, timeLength, minFreeDiskSpace = 100):
         self.dataType = dataType
         self.timeLength = timeLength
         self.hostName = socket.gethostname()
@@ -34,7 +34,7 @@ class shm_daq_files:
         self.datafileName = ''
         self.dataFile = ''
         self.now = datetime.datetime.now()
-        self.minDiskSpace = minDiskSpace
+        self.minFreeDiskSpace = minFreeDiskSpace
 
         # CREATE DIRECTORY IF NOT EXISTS
         directories = []
@@ -45,6 +45,30 @@ class shm_daq_files:
                 os.makedirs(directory)
         return
 
+    def getFreeDiskSpace(self):
+        s = os.statvfs('/')
+        freeDS = (s.f_bavail * s.f_frsize)/1024/1000 # MB
+        return freeDS
+
+    def showFreeDiskSpace(self):
+        freeDS = self.getFreeDiskSpace()
+        logger = logging.getLogger(__name__)
+        logger.info('Free DiskSpace= {:,.0f}(MB), DAQ timeLength= {:.0f}(Hr)'.format(
+            freeDS,freeDS*1e6/(8*4*400*3600)))
+        return
+
+    def manageFreeDiskSpace(self):
+        # Delete files if free disk-space is lower than minFreeDiskSpace
+
+        while self.getFreeDiskSpace() < self.minFreeDiskSpace:
+            fileMask = self.datafilePath + self.hostName + '-' + self.dataType + '*'
+            files = sorted(glob.glob(fileMask))
+            os.remove(files[0])
+            outputStr = 'File Deleted: {}, FSD= {:,.0f}'.format(
+                os.path.basename(files[0]),
+                self.getFreeDiskSpace())
+            logger.info(outputStr + ' ' * (53 - len(outputStr)))
+        return
 
     def save(self, resampledData):
                
@@ -56,12 +80,9 @@ class shm_daq_files:
             datafileName_ = self.hostName + '-' + self.dataType +'-' + \
                             datetime.datetime.fromtimestamp(time_).strftime("%Y%m%d-%H%M%S")
             if len(self.datafileName) == 0:
-                # CHECK FREE DISK-SPACE 
-                s = os.statvfs('/')
-                free_space = (s.f_bavail * s.f_frsize) # Bytes
-                logger.info('Free DiskSpace= {:,.0f}(MB), DAQ timeLength= {:.0f}(Hr)'.format(
-                    free_space/1024/1000,free_space/(8*4*400*3600)))
-
+                # SHOW DISK SPACE INFORMATION
+                self.showFreeDiskSpace()
+                
                 # CREATING THE FIRST DATA FILE
                 self.datafileName = datafileName_
                 self.dataFile = open(self.datafilePath + self.datafileName, "ba")
@@ -70,20 +91,9 @@ class shm_daq_files:
             elif self.datafileName != datafileName_:
                 self.dataFile.close()
 
-                # DELETE FILES IF FREE DISK-SPACE IS LOWER THAN minDiskSpace
-                files = sorted(glob.glob(
-                    self.datafilePath + self.hostName + '-' + self.dataType + '*'))
-                s = os.statvfs('/')
-                # logger.info('minDiskSpace={}'.format(self.minDiskSpace))
-                while (s.f_bavail*s.f_frsize)/1024/1000 < self.minDiskSpace:
-                    os.remove(files[0])
-                    str = 'File Deleted: ' + os.path.basename(files[0]) + ' FDS= {:,.0f}'.format(
-                        (s.f_bavail*s.f_frsize)/1024/1000)
-                    logger.info(str + ' ' * (53 - len(str)))
-                    s = os.statvfs('/')
-                    files = sorted(glob.glob(
-                        self.datafilePath + self.hostName + '-' + self.dataType + '*'))
-
+                # Ensure minFreeDiskSpace
+                self.manageFreeDiskSpace()
+                
                 # MOVES TO NEXT FILE
                 self.datafileName = datafileName_
                 self.dataFile = open(self.datafilePath + self.datafileName, "ba")

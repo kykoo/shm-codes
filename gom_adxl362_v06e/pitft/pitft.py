@@ -70,7 +70,7 @@ data4plot = []      # data corresponding to xaxislimit
 # STATUS LED
 statusLED = 0
 statusLED_PIN = 21
-
+count_toggleStatusLED = 0
 
 def pushButton_Polling():
     
@@ -99,7 +99,7 @@ def guiOnOff(x):
         pygame.display.quit()
     return
 
-def timehistory_Plot():
+def plotTimeHistory():
     global data4plot, Fs, dt
     global pygame, lcd
      
@@ -128,12 +128,46 @@ def timehistory_Plot():
     # print('timehistoryPlot executed')
     return
 
-def display(resampledData):
+def plotPSD():
+    global dataPSD, nAverageOfPSD, NFFT, Pxx, Fs
+
+    nAverageOfPSD += 1
+    dpi = 80
+    figure(1, figsize=(320/dpi, 240/dpi))
+    clf()
+    for i in range(3):
+        f, Pxx_ = signal.welch(signal.detrend(data4PSD[:, i]), int(Fs), nperseg=NFFT)
+        Pxx[:, i] = (nAverageOfPSD - 1) / nAverageOfPSD * Pxx[:, i] + Pxx_ / (nAverageOfPSD)
+        semilogy(f, Pxx[:, i])
+    xlabel('Frequency (Hz)')
+    ylabel('PSD (g^2/Hz)')
+    Fn = Fs/2
+    gca().set_xlim([0, Fn])
+    gca().yaxis.set_label_coords(-0.10, 0.5)
+    subplots_adjust(left=0.13, bottom=0.15, right=0.95, top=0.95)
+    savefig('.psd.png', dpi=80)
+    close(1)
+
+    pygame.display.init()
+    pygame.mouse.set_visible(False)
+    lcd = pygame.display.set_mode((320, 240))
+    feed_surface = pygame.image.load('.psd.png')
+    lcd.blit(feed_surface, (0, 0))
+    pygame.display.update()
+    sleep(0.05)
+    return
+
+def displayGraph(graphType, resampledData):
     if not resampledData:
         return
     if storeData(resampledData):
         # print('true from storeData')
-        timehistory_Plot()
+        
+        if graphType == 0:
+            plotTimeHistory()
+        elif graphType = 1:
+            plotPSD()
+            
     return
 
     
@@ -215,15 +249,19 @@ def display_time():
         pygame.display.update()
 
 
-def toggleStatusLED():
-    global statusLED
-
-    if statusLED == 0:
-        statusLED = 1
-        write2LED(statusLED)
-    else:
-        statusLED = 0
-        write2LED(statusLED)
+def toggleStatusLED(n):
+    global statusLED, count_toggleStatusLED
+    
+    count_toggleStatusLED += 1
+    if count_toggleStatusLED > n:
+        if statusLED == 0:
+            statusLED = 1
+            write2LED(statusLED)
+        else:
+            statusLED = 0
+            write2LED(statusLED)
+        count_toggleStatusLED = 0
+    return
         
 def write2LED(cmd):
     if cmd == 1:

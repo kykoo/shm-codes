@@ -351,20 +351,20 @@ try:
         # STORE AND DISPLAY DATA
         #
 
-        if accDAQfile.save(resampledData):
-            # Toggle LED every n-writing
-            n = 5
-            writeCount += 1
-            if writeCount > n:
-                pitft.toggleStatusLED()
-                writeCount = 0
+        if not resampledData:
+            if accDAQfile.save(resampledData):
+                pitft.toggleStatusLED(5)
 
-        if state_guiOnOff[state[1]] == 1:
-            pitft.display(resampledData)
-            # HEART BEAT
-            pitft.display_time()
+            if state[1] > 3:
+                pitft.displayGraph(state[1], resampledData)
+                pitft.display_time()
+            
+            #if state_guiOnOff[state[1]] == 1:
+            #    pitft.display(resampledData)
+            #    # HEART BEAT
+            #    pitft.display_time()
 
-        resampledData = []
+            resampledData = []
 
         # sleep(0.05)
 
