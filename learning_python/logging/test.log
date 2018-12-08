@@ -1,0 +1,24 @@
+2018-11-28 17:09:09,396 - __main__ - INFO - Hello baby
+2018-11-28 17:09:09,398 - __main__ - ERROR - Failed to do something
+Traceback (most recent call last):
+  File "./logging_test.py", line 73, in <module>
+    print(1/0)
+ZeroDivisionError: division by zero
+2018-11-28 17:10:42,561 - __main__ - INFO - Hello baby
+2018-11-28 17:10:42,563 - __main__ - ERROR - Failed to do something
+Traceback (most recent call last):
+  File "./logging_test.py", line 73, in <module>
+    print(1/0)
+ZeroDivisionError: division by zero
+2018-11-28 17:15:23,775 - __main__ - INFO - Hello baby
+2018-11-28 17:15:23,777 - __main__ - ERROR - Failed to do something
+Traceback (most recent call last):
+  File "./logging_test.py", line 73, in <module>
+    print(1/0)
+ZeroDivisionError: division by zero
+Hello baby
+Failed to do something
+Traceback (most recent call last):
+  File "./logging_test.py", line 73, in <module>
+    print(1/0)
+ZeroDivisionError: division by zero
