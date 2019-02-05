@@ -74,6 +74,7 @@ def serial_rx_callback():
             rx_buff += ser.read(1).decode('UTF-8')
         except:
             pass
+    # print(len(rx_buff))
     if(len(rx_buff) > 0):
         parse_rx_buff()
 
@@ -145,7 +146,7 @@ pygame.init()
 #
 # FILE OBJECT
 #
-windDAQfile = shm_daq_files('wnd', 3600*24)
+windDAQfile = shm_daq_files('wnd', 3600)
 
 # LOOP
 while(True):
@@ -155,7 +156,7 @@ while(True):
     state_transition_callback()
 
     serial_rx_callback()
-
+    
     sleep(0.05)
 
 GPIO.cleanup()

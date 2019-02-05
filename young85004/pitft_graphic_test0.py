@@ -12,5 +12,5 @@ lcd.fill((0,0,0))
 pygame.display.update()
 
 while True:
-    print()
+    print('')
     

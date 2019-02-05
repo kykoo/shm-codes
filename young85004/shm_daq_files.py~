@@ -55,7 +55,7 @@ class shm_daq_files:
                 self.dataFile.close()
                 self.datafileName = datafileName_
                 self.dataFile = open(self.datafilePath + self.datafileName, "ba")
-            data4file = array_.array('d', [times[i]]+ data[i])
+            data4file = array_.array('d', data[i])
             data4file.tofile(self.dataFile)
         return
 
